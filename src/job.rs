@@ -1,21 +1,48 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::rc::Rc;
+use crate::kernel::Kernel;
 use crate::shellmemory::{FrameTable, ProgMemory, FRAME_SIZE};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Job<> {
     pc: isize,
     size: usize,
-    pid: usize,
     filename: String,
     program: Rc<Program>
+}
+
+impl Job {
+    pub(crate) fn new(
+        size: usize,
+        filename: String,
+        program: Program,
+        kern: &mut Kernel,
+    ) -> Job {
+        
+        for job in kern.job_queue.iter() {
+            if job.filename == filename {
+                return Job {
+                    pc: 0,
+                    size,
+                    filename,
+                    program: Rc::clone(&job.program)
+                }
+            }
+        }
+        Job{
+            pc: 0,
+            size,
+            filename,
+            program: Rc::new(program),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct Program {
     filename: String,
-    size: usize,
+    pub(crate) size: usize,
     page_table: Vec<isize>,
 }
 

@@ -84,10 +84,18 @@ fn set(var_mem: &mut VarMemory, input: &[String]) {
 fn exec(filename: &str, kern: &mut Kernel, ft: &mut FrameTable, p_mem: &mut ProgMemory) {
     let prog_res = job::Program::new(ft, p_mem, filename);
     match prog_res {
-        Ok(p) => println!("nice"),
+        Ok(p) => {
+            println!("nice");
+            let job = job::Job::new(
+                p.size, 
+                str::to_string(filename),
+                p,
+                kern,
+            );
+            kern.queue_job(job)
+        },
         Err(e) => err_msg(e.as_str())
     }
-    
 }
 
 fn cat(filename: &str) {

@@ -15,7 +15,7 @@ fn main() {
     let mut var_mem = shellmemory::VarMemory::new(shellmemory::VAR_SIZE);
     let mut p_mem = shellmemory::ProgMemory::new(shellmemory::MEM_SIZE);
     let mut frame_t = shellmemory::FrameTable::new();
-    let mut kernel = kernel::Kernel::new();
+    let mut kernel = kernel::Kernel::new(kernel::Mode::FCFS);
     let mut cwd = String::from("/");
     
     let prompt = '$';
