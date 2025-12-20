@@ -12,10 +12,17 @@ use chrono::Local;
 
 fn main() {
     println!("Minos Shell v0.0.0 - minsh");
-    let mut var_mem = shellmemory::VarMemory::new(shellmemory::VAR_SIZE);
-    let mut p_mem = shellmemory::ProgMemory::new(shellmemory::MEM_SIZE);
-    let mut frame_t = shellmemory::FrameTable::new();
-    let mut kernel = kernel::Kernel::new(kernel::Mode::FCFS);
+    let var_mem = shellmemory::VarMemory::new(shellmemory::VAR_SIZE);
+    let p_mem = shellmemory::ProgMemory::new(shellmemory::MEM_SIZE);
+    let frame_t = shellmemory::FrameTable::new();
+    
+    let mut kernel = kernel::Kernel::new(
+        kernel::Mode::FCFS,
+        p_mem,
+        var_mem,
+        frame_t
+    );
+    
     let mut cwd = String::from("/");
     
     let prompt = '$';
@@ -33,10 +40,7 @@ fn main() {
 
         interpreter::interpreter(
             args,
-            &mut var_mem,
-            &mut p_mem,
             &mut kernel,
-            &mut frame_t,
         );
         
     }

@@ -65,7 +65,7 @@ impl VarEntry {
 pub struct Frame {
     valid: bool,
     id: usize,
-    owner_pid: isize,
+    program_id: String
 }
 
 impl Frame {
@@ -73,18 +73,18 @@ impl Frame {
         Frame{
             valid: false,
             id,
-            owner_pid: -1
+            program_id: String::from("OWNERLESS")
         }
     }
     
     pub(crate) fn set_invalid(&mut self) {
         self.valid = false;
-        self.owner_pid = -1;
+        self.program_id = String::from("OWNERLESS")
     }
     
-    pub(crate) fn set_valid(&mut self, owner_id: isize) {
+    pub(crate) fn set_valid(&mut self, program_id: String) {
         self.valid = true;
-        self.owner_pid = owner_id;
+        self.program_id = program_id;
     }
 }
 
@@ -110,9 +110,8 @@ impl FrameTable {
         -1
     }
     
-    pub(crate) fn alloc_frames(&mut self, num_frames: usize) -> Vec<isize> {
+    pub(crate) fn alloc_frames(&mut self, num_frames: usize, filename: String) -> Vec<isize> {
         let mut free: Vec<isize> = vec![];
-        
         for _ in 0..num_frames {
             let idx = self.find_free_frame();
             if idx != -1 {
@@ -120,6 +119,7 @@ impl FrameTable {
                 let frame = self.frames.get_mut(idx as usize);
                 if let Some(frame) = frame {
                     frame.valid = true;
+                    frame.program_id = filename.clone();
                 } else {
                     let err = format!("Error retrieving frame: {:?}", frame);
                     panic!("{err}")
@@ -130,6 +130,20 @@ impl FrameTable {
         }
         free
     }
+    
+    pub fn frame_dump(&self) {
+        println!("===== FRAME DUMP =====");
+        let mut skipped = 0;
+        for entry in self.frames.iter() {
+            if entry.valid {
+                println!("[{}]: {}", entry.id, entry.program_id.clone());
+            } else {
+                skipped += 1;
+            }
+        }
+        println!("Skipped [{skipped}] empty FRAMES");
+    }
+    
 }
 
 #[derive(Debug)]
@@ -149,7 +163,7 @@ impl ProgMemory {
     pub(crate) fn read(&self, idx: usize) -> String {
         if idx > self.size {
             let size = self.size;
-            self.fatal_dump(format!("Write out of bounds: {idx} when valid range is [0, {size}").as_str());
+            self.dump(format!("Write out of bounds: {idx} when valid range is [0, {size}").as_str(), true);
             panic!()
         }
         self.prog_mem[idx].line.clone()
@@ -158,34 +172,43 @@ impl ProgMemory {
     pub(crate) fn write(&mut self, idx: usize, val: String) {
         if idx > self.size {
             let size = self.size;
-            self.fatal_dump(format!("Write out of bounds: {idx} when valid range is [0, {size}").as_str());
+            self.dump(format!("Write out of bounds: {idx} when valid range is [0, {size}").as_str(), true);
             panic!()
         }
         self.prog_mem[idx].line = val;
     }
     
-    pub(crate) fn write_from_frame(&mut self, frame_idx: usize, offset: usize, val: String) {
+    pub(crate) fn write_to_frame(&mut self, frame_idx: usize, offset: usize, val: String) {
         let idx = frame_idx * FRAME_SIZE + offset;
         if idx > self.size {
             let size = self.size;
-            self.fatal_dump(format!("Write out of bounds: {idx} when valid range is [0, {size}").as_str());
+            self.dump(format!("Write out of bounds: {idx} when valid range is [0, {size}").as_str(), true);
             panic!()
         }
         self.prog_mem[idx].line = val;
     }
     
-    pub(crate) fn fatal_dump(&self, msg: &str) {
-        eprintln!("\n===== FATAL ERROR =====");
-        eprintln!("ERROR: {}", msg);
-        eprintln!("===== MEMORY DUMP =====");
-        
-        eprintln!("Starting at index 0 below");
-        // Iterate through memory contents and print them
-        for (index, entry) in self.prog_mem.iter().enumerate() {
-            eprintln!("[{:04}]: {}", index, entry.line);
+    pub(crate) fn dump(&self, msg: &str, fatal: bool) {
+        if fatal {
+            println!("\n===== FATAL ERROR! =====");
+            println!("ERROR: {}", msg);
         }
-
-        panic!("The above error occurred while attempting a memory operation.")
+        println!("===== MEMORY DUMP =====");
+        println!("Starting at index 0 below");
+        // Iterate through memory contents and print them
+        let mut skipped = 0;
+        for (index, entry) in self.prog_mem.iter().enumerate() {
+            if !entry.line.is_empty() {
+                println!("[{:04}]: {}", index, entry.line);
+            } else {
+                skipped += 1;
+            }
+        }
+        println!("Skipped [{skipped}] empty lines");
+        
+        if fatal {
+            panic!("The above error occurred while attempting a memory operation.")
+        }
     }
 }
 

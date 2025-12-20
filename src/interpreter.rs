@@ -5,7 +5,7 @@ use std::io::{BufRead, BufReader};
 use crate::job;
 
 fn bad_cmd(input: &str) {
-    print!("minsh: unrecognized command: {input}");
+    println!("minsh: unrecognized command: {input}");
     return;
 }
 
@@ -16,10 +16,7 @@ pub(crate) fn err_msg(input: &str) {
 
 pub fn interpreter(
     input: Vec<String>,
-    var_mem: &mut VarMemory,
-    p_mem: &mut ProgMemory,
     kernel: &mut Kernel,
-    ft: &mut FrameTable,
 ) {
 
     for arg in input {
@@ -37,21 +34,21 @@ pub fn interpreter(
                     bad_cmd(arg_arr.join(" ").as_str());
                     return
                 }
-                echo(var_mem,&arg_arr[1])
+                echo(kernel.get_mut_varmem(),&arg_arr[1])
             },
             "set" => {
                 if arg_arr.len() < 3 {
                     bad_cmd("usage: set <VAR> <VALUE>");
                     return
                 }
-                set(var_mem, &arg_arr[1..])
+                set(kernel.get_mut_varmem(), &arg_arr[1..])
             },
             "exec" => {
                 if arg_arr.len() < 2 {
                     bad_cmd("usage: exec <FILENAME>");
                     return
                 }
-                exec(&arg_arr[1], kernel, ft, p_mem)
+                exec(&arg_arr[1], kernel)
             },
             "cat" => {
                 if arg_arr.len() < 2 {
@@ -81,21 +78,29 @@ fn set(var_mem: &mut VarMemory, input: &[String]) {
     var_mem.set(input[0].clone(), input[1].clone())
 }
 
-fn exec(filename: &str, kern: &mut Kernel, ft: &mut FrameTable, p_mem: &mut ProgMemory) {
-    let prog_res = job::Program::new(ft, p_mem, filename);
+fn exec(
+    filename: &str, 
+    kern: &mut Kernel,
+) {
+    let prog_res = job::Program::new(
+        kern,
+        filename
+    );
     match prog_res {
         Ok(p) => {
-            println!("nice");
             let job = job::Job::new(
                 p.size, 
                 str::to_string(filename),
                 p,
                 kern,
             );
-            kern.queue_job(job)
+            kern.queue_job(job);
+            kern.execute_schedule().expect("TODO: panic message");
         },
         Err(e) => err_msg(e.as_str())
     }
+    // p_mem.dump("testing_lol", false);
+    // ft.frame_dump();
 }
 
 fn cat(filename: &str) {
@@ -129,7 +134,6 @@ fn cd() {
 }
 
 fn touch() {
-    
     println!("Unimplemented")
 }
 
