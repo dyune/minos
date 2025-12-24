@@ -7,6 +7,12 @@ use std::{
 use crate::kernel::{Kernel};
 use crate::shellmemory::{FrameTable, ProgMemory, FRAME_SIZE};
 
+#[derive(Debug, Clone)]
+pub(crate) enum FailProgramCreation{
+    ExistsAlready,
+    Error(String)
+}
+
 static GLOBAL_PID: AtomicIsize = AtomicIsize::new(0);
 
 fn assign_pid() -> isize {
@@ -28,31 +34,44 @@ pub(crate) struct Job {
 }
 
 impl Job {
-    pub(crate) fn new(
-        size: usize,
+    pub(crate) fn new<'a>(
+        size: Option<usize>,
         filename: String,
-        program: Program,
+        program: Option<Program>,
         kern: &mut Kernel,
-    ) -> Job {
+    ) -> Result<Job, &'a str> {
         
-        for job in kern.job_queue.iter() {
-            if job.filename == filename {
-                return Job{
-                    pid: assign_pid(),
-                    pc: 0,
-                    size,
-                    filename,
-                    program: Rc::clone(&job.program)
+        // This option is left for when a job already exists
+        if program.is_none() && size.is_none() {
+            for job in kern.job_queue.iter() {
+                if job.filename == filename {
+                    return Ok(
+                        Job{
+                            pid: assign_pid(),
+                            pc: 0,
+                            size: job.program.size,
+                            filename,
+                            program: Rc::clone(&job.program)
+                        }
+                    )
                 }
             }
+            return Err("Illegal state, no job found")
         }
-        Job{
-            pid: assign_pid(),
-            pc: 0,
-            size,
-            filename,
-            program: Rc::new(program),
+
+        if size.is_none() {
+            return Err("Illegal state, abort execution")
         }
+        
+        Ok(
+            Job{
+                pid: assign_pid(),
+                pc: 0,
+                size: size.unwrap(),
+                filename,
+                program: Rc::new(program.unwrap()),
+            }
+        )
     }
 }
 
@@ -67,10 +86,18 @@ impl Program {
     pub(crate) fn new(
         kern: &mut Kernel,
         filename: &str,
-    ) -> Result<Program, String> {
+    ) -> Result<Program, FailProgramCreation> {
+        
         let mut size = 0;
         let file = File::open(filename);
         let mut lines: Vec<String> = vec![];
+        
+        for job in kern.job_queue.iter() {
+            if job.filename == filename {
+                dbg!("exists");
+                return Err(FailProgramCreation::ExistsAlready)
+            }
+        }
         
         if let Ok(f) = file {
             let reader = BufReader::new(f);
@@ -79,14 +106,21 @@ impl Program {
                     Ok(ln) => { lines.push(ln); size += 1; }
                     Err(e) => {
                         return Err(
-                            format!("failed to read line {} from {} due to {}", idx, filename, e)
+                            FailProgramCreation::Error(
+                                format!("failed to read line {} from {} due to {}", idx, filename, e)
+                            )
                         )
                     } 
                 }
             }
         } else {
-            return Err(format!("failed to open {}", filename))
+            return Err(
+                FailProgramCreation::Error(
+                    format!("failed to open {}", filename)
+                )
+            )
         }
+        
         let num_frames = (size + FRAME_SIZE - 1) / FRAME_SIZE;
         let ft = kern.get_mut_ft();
         let page_table = ft.alloc_frames(num_frames, String::from(filename));

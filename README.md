@@ -16,3 +16,7 @@ to get another segfault :D
 * File System implementation (hefty one)
 * Allocating variables in heap and stack for programs
 * Multi-level page (jury's still out on this one)
+
+## TODO:
+* FCFS, RR, SJF scheduling options
+* Baseline demand paging implementation

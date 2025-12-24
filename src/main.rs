@@ -42,6 +42,8 @@ fn main() {
             args,
             &mut kernel,
         );
-        
+        // kernel.get_mut_pmem().dump("ok", false);
+        // kernel.get_mut_ft().frame_dump();
+        // kernel.memory_dump();
     }
 }

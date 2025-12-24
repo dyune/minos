@@ -3,6 +3,7 @@ use crate::kernel::Kernel;
 use std::fs::{File};
 use std::io::{BufRead, BufReader};
 use crate::job;
+use crate::job::FailProgramCreation;
 
 fn bad_cmd(input: &str) {
     println!("minsh: unrecognized command: {input}");
@@ -48,7 +49,7 @@ pub fn interpreter(
                     bad_cmd("usage: exec <FILENAME>");
                     return
                 }
-                exec(&arg_arr[1], kernel)
+                exec(&arg_arr[1..], kernel)
             },
             "cat" => {
                 if arg_arr.len() < 2 {
@@ -79,28 +80,58 @@ fn set(var_mem: &mut VarMemory, input: &[String]) {
 }
 
 fn exec(
-    filename: &str, 
+    filenames: &[String], 
     kern: &mut Kernel,
 ) {
-    let prog_res = job::Program::new(
-        kern,
-        filename
-    );
-    match prog_res {
-        Ok(p) => {
-            let job = job::Job::new(
-                p.size, 
-                str::to_string(filename),
-                p,
-                kern,
-            );
-            kern.queue_job(job);
-            kern.execute_schedule().expect("TODO: panic message");
-        },
-        Err(e) => err_msg(e.as_str())
+    for file in filenames {
+        let prog_res = job::Program::new(
+            kern,
+            file
+        );
+        match prog_res {
+            Ok(p) => {
+                let job = job::Job::new(
+                    Some(p.size),
+                    str::to_string(file),
+                    Some(p),
+                    kern,
+                );
+                if let Ok(j) = job {
+                    kern.queue_job(j);
+                } else {
+                    err_msg(job.unwrap_err());
+                    return
+                }
+            },
+            Err(e) => match e {
+                FailProgramCreation::Error(e) => { 
+                    err_msg(e.as_str());
+                    return;
+                },
+                FailProgramCreation::ExistsAlready => {
+                    let job = job::Job::new(
+                        None,
+                        str::to_string(file),
+                        None,
+                        kern,
+                    );
+                    if let Ok(j) = job {
+                        kern.queue_job(j);
+                    } else {
+                        err_msg(job.unwrap_err());
+                        return
+                    }
+                }
+            }
+        }
     }
-    // p_mem.dump("testing_lol", false);
-    // ft.frame_dump();
+    // kern.memory_dump();
+    let res = kern.execute_fcfs_schedule();
+    if let Err(r) = res {
+        err_msg(r);
+        return
+    }
+
 }
 
 fn cat(filename: &str) {

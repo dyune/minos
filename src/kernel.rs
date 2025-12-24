@@ -1,7 +1,11 @@
-use std::cmp::PartialEq;
-use std::collections::VecDeque;
+use std::{
+    cmp::PartialEq, 
+    collections::VecDeque,
+    mem::drop,
+    rc::Rc,
+};
 use crate::interpreter::interpreter;
-use crate::job::Job;
+use crate::job::{Job, find_mem_idx};
 use crate::shellmemory::{Frame, FrameTable, ProgMemory, VarMemory, FRAME_SIZE};
 
 #[derive(PartialEq)]
@@ -60,28 +64,48 @@ impl<'a> Kernel<'a> {
         }
     }
     
-    pub(crate) fn terminate_job(&mut self, job: Job) -> Option<Job> { 
-        self.job_queue.pop_front()
+    pub(crate) fn dealloc_program(&mut self, job: Job) -> Result<usize, &str> {
+        let program = job.program;
+        let rc = Rc::strong_count(&program);
+        
+        // rc == 1 means that we should be the last the program holding a ref to the program
+        if rc == 1 {
+            let pt = program.page_table.clone();
+            for page in pt.iter() {
+                let frame = self.frame_table.frames.get_mut(*page as usize);
+                if let Some(f) = frame {
+                    f.set_invalid();
+                } else {
+                    panic!("Failed to find frame while deallocating memory")
+                }
+            }
+        }
+        
+        // drop a reference to the program or drop entirely if we are the last user
+        drop(program);
+        Ok(rc - 1)
     }
     
-    pub(crate) fn execute_schedule(
+    pub(crate) fn execute_fcfs_schedule(
         &mut self,
     ) -> Result<&str, &str> {
+        
         if self.job_queue.len() == 0 {
             return Err("No job to execute")
         }
+        
         while self.job_queue.len() > 0 {
             let job = self.job_queue.pop_front();
-            if let Some(mut j) = job {
-                self.execute_fcfs(&mut j);
+            if let Some(j) = job {
+                self.execute_program_fcfs(j);
             } else {
                 return Err("Error fetching job")
             }
         }
-        Ok(("cock"))
+        Ok("Success")
     }
     
-    fn execute_fcfs(&mut self, job: &mut Job) {
+    fn execute_program_fcfs(&mut self, mut job: Job) {
         
         let limit = job.size;
         let pt = &job.program.page_table;
@@ -95,7 +119,7 @@ impl<'a> Kernel<'a> {
                 }
 
                 let line = self.prog_memory
-                    .read(crate::job::find_mem_idx(page_idx.clone() as usize, job.pc))
+                    .read(find_mem_idx(page_idx.clone() as usize, job.pc))
                     .split(';')
                     .map(str::to_string)
                     .collect();
@@ -104,6 +128,20 @@ impl<'a> Kernel<'a> {
 
                 interpreter(line, self);
                 job.pc += 1;
+            }
+        }
+        self.dealloc_program(job).expect("TODO: panic message");
+    }
+    
+    pub(crate) fn memory_dump(&self) {
+        println!("-=-=-=-=-= Dumping Memory =-=-=-=-=-");
+        for (i, f) in self.frame_table.frames.iter().enumerate() {
+            if f.valid {
+                println!("Frame {i}");
+                for j in 0..FRAME_SIZE {
+                    let line = self.prog_memory.read(i * FRAME_SIZE + j);
+                    println!("[{:02}]: {}", j, line);
+                }
             }
         }
     }

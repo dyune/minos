@@ -63,7 +63,7 @@ impl VarEntry {
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Frame {
-    valid: bool,
+    pub(crate) valid: bool,  // If valid, then in-use; if not valid, then free
     id: usize,
     program_id: String
 }
@@ -89,7 +89,7 @@ impl Frame {
 }
 
 pub struct FrameTable {
-    frames: Vec<Frame>,
+    pub(crate) frames: Vec<Frame>,
 }
 
 impl FrameTable {
@@ -188,6 +188,10 @@ impl ProgMemory {
         self.prog_mem[idx].line = val;
     }
     
+    pub(crate) fn read_from_frame() {
+        
+    }
+    
     pub(crate) fn dump(&self, msg: &str, fatal: bool) {
         if fatal {
             println!("\n===== FATAL ERROR! =====");
@@ -207,7 +211,7 @@ impl ProgMemory {
         println!("Skipped [{skipped}] empty lines");
         
         if fatal {
-            panic!("The above error occurred while attempting a memory operation.")
+            panic!("An error occurred while attempting a memory operation.")
         }
     }
 }
