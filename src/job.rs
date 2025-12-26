@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicIsize, Ordering},
 };
 use crate::kernel::{Kernel};
-use crate::shellmemory::{FrameTable, ProgMemory, FRAME_SIZE};
+use crate::shellmemory::{FRAME_SIZE};
 
 #[derive(Debug, Clone)]
 pub(crate) enum FailProgramCreation{
@@ -94,7 +94,6 @@ impl Program {
         
         for job in kern.job_queue.iter() {
             if job.filename == filename {
-                dbg!("exists");
                 return Err(FailProgramCreation::ExistsAlready)
             }
         }

@@ -1,5 +1,5 @@
 use crate::shellmemory::{VarMemory, ProgMemory, FrameTable};
-use crate::kernel::Kernel;
+use crate::kernel::{Kernel, Mode};
 use std::fs::{File};
 use std::io::{BufRead, BufReader};
 use crate::job;
@@ -46,7 +46,7 @@ pub fn interpreter(
             },
             "exec" => {
                 if arg_arr.len() < 2 {
-                    bad_cmd("usage: exec <FILENAME>");
+                    bad_cmd("usage: exec <FILENAME 1> <FILENAME 2> <etc...>");
                     return
                 }
                 exec(&arg_arr[1..], kernel)
@@ -57,8 +57,16 @@ pub fn interpreter(
                     return
                 }
                 cat(&arg_arr[1])
+            },
+            "setmod" => {
+                if arg_arr.len() < 2 {
+                    bad_cmd("usage: setmod <FCFS, RR, SJF>");
+                    return
+                }
+                setmod(&arg_arr[1], kernel)
             }
             _ => bad_cmd(arg.as_str())
+            
         }
     }
 }
@@ -126,7 +134,7 @@ fn exec(
         }
     }
     // kern.memory_dump();
-    let res = kern.execute_fcfs_schedule();
+    let res = kern.execute_schedule();
     if let Err(r) = res {
         err_msg(r);
         return
@@ -153,6 +161,24 @@ fn cat(filename: &str) {
         }
     } else {
         err_msg(format!("failed to open {}", filename).as_str());
+    }
+}
+
+fn setmod(mode: &str, kernel: &mut Kernel) {
+    match mode {
+        "FCFS" => { 
+            kernel.mode = Mode::FCFS;
+            println!("Scheduler running in FCFS")
+        }
+        "SJF" => {
+            kernel.mode = Mode::SJF;
+            println!("Scheduler running in SJF")
+        }
+        "RR" => {
+            kernel.mode = Mode::RR;
+            println!("Scheduler running in RR")
+        }
+        _ => err_msg(format!("unknown scheduler mode: {mode}").as_str())
     }
 }
 

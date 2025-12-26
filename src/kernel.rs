@@ -1,5 +1,5 @@
 use std::{
-    cmp::PartialEq, 
+    cmp::PartialEq,
     collections::VecDeque,
     mem::drop,
     rc::Rc,
@@ -12,6 +12,7 @@ use crate::shellmemory::{Frame, FrameTable, ProgMemory, VarMemory, FRAME_SIZE};
 pub(crate) enum Mode {
     FCFS,
     RR,
+    SJF,
 }
 
 pub(crate) struct Kernel<'a> {
@@ -20,7 +21,7 @@ pub(crate) struct Kernel<'a> {
     pub(crate) prog_memory: ProgMemory,
     pub(crate) var_memory: VarMemory,
     pub(crate) frame_table: FrameTable,
-    mode: Mode
+    pub(crate) mode: Mode
 }
 
 impl<'a> Kernel<'a> {
@@ -60,16 +61,32 @@ impl<'a> Kernel<'a> {
             },
             Mode::RR => {
                 self.job_queue.push_back(job)
+            },
+            Mode::SJF => {
+                self.queue_sjf(job)
             }
         }
+    }
+    
+    pub(crate) fn queue_sjf(&mut self, job: Job) {
+        let len = job.program.size;
+        
+        for (i, j) in self.job_queue.iter().enumerate() {
+            if j.program.size > len {
+                self.job_queue.insert(i, job);
+                return
+            }
+        }
+        self.job_queue.push_back(job)
     }
     
     pub(crate) fn dealloc_program(&mut self, job: Job) -> Result<usize, &str> {
         let program = job.program;
         let rc = Rc::strong_count(&program);
-        
+
         // rc == 1 means that we should be the last the program holding a ref to the program
         if rc == 1 {
+            dbg!("dropping program");
             let pt = program.page_table.clone();
             for page in pt.iter() {
                 let frame = self.frame_table.frames.get_mut(*page as usize);
@@ -80,32 +97,55 @@ impl<'a> Kernel<'a> {
                 }
             }
         }
-        
+
         // drop a reference to the program or drop entirely if we are the last user
         drop(program);
         Ok(rc - 1)
     }
     
-    pub(crate) fn execute_fcfs_schedule(
+    pub(crate) fn execute_schedule(
         &mut self,
-    ) -> Result<&str, &str> {
-        
+    ) -> Result<(), &str> {
+
         if self.job_queue.len() == 0 {
             return Err("No job to execute")
         }
         
+        let res: Result<(), &str>;
+        match self.mode {
+            Mode::FCFS => res = self.execute_fcfs(),
+            Mode::SJF => res = self.execute_fcfs(),
+            Mode::RR => res = self.execute_rr(0),
+        }
+        res
+    }
+    
+    fn execute_fcfs(&mut self) -> Result<(), &str> {
         while self.job_queue.len() > 0 {
             let job = self.job_queue.pop_front();
             if let Some(j) = job {
-                self.execute_program_fcfs(j);
+                self.execute_whole_program(j);
             } else {
                 return Err("Error fetching job")
             }
         }
-        Ok("Success")
+        Ok(())
     }
     
-    fn execute_program_fcfs(&mut self, mut job: Job) {
+    fn execute_rr(&mut self, round: usize) -> Result<(), &str> {
+        let mut rnd = round;
+        if round == 0 {
+            rnd = 2;
+        }
+        // TODO
+        Ok(())
+    }
+    
+    fn execute_rr_program(&mut self, mut job: Job) {
+        
+    }
+    
+    fn execute_whole_program(&mut self, mut job: Job) {
         
         let limit = job.size;
         let pt = &job.program.page_table;
@@ -132,7 +172,7 @@ impl<'a> Kernel<'a> {
         }
         self.dealloc_program(job).expect("TODO: panic message");
     }
-    
+
     pub(crate) fn memory_dump(&self) {
         println!("-=-=-=-=-= Dumping Memory =-=-=-=-=-");
         for (i, f) in self.frame_table.frames.iter().enumerate() {

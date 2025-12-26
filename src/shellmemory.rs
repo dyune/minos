@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 pub const FRAME_SIZE: usize = 4;
 pub const DEMAND_PAGE_LIMIT: usize = 2;
-pub const MEM_SIZE: usize = 1024;
+pub const MEM_SIZE: usize = 80;
 pub const VAR_SIZE: usize = 100;
 pub const NUM_FRAMES: usize = MEM_SIZE / FRAME_SIZE;
 
@@ -187,9 +187,9 @@ impl ProgMemory {
         }
         self.prog_mem[idx].line = val;
     }
-    
+
     pub(crate) fn read_from_frame() {
-        
+
     }
     
     pub(crate) fn dump(&self, msg: &str, fatal: bool) {
