@@ -3,6 +3,7 @@ mod shellmemory;
 mod kernel;
 mod job;
 mod errors;
+mod program;
 
 use {
     std::io::Write,
@@ -28,7 +29,7 @@ fn main() {
     let prompt = '$';
     
     loop {
-        
+
         let mut buf = String::new();
         let time = Local::now().format("%H:%M");
         print!("{time}~{cwd} {prompt} ");

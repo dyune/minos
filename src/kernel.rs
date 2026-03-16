@@ -115,7 +115,7 @@ impl<'a> Kernel<'a> {
         match self.mode {
             Mode::FCFS => res = self.execute_fcfs(),
             Mode::SJF => res = self.execute_fcfs(),
-            Mode::RR => res = self.execute_rr(0),
+            Mode::RR => res = self.execute_rr(2),
         }
         res
     }
@@ -133,16 +133,55 @@ impl<'a> Kernel<'a> {
     }
     
     fn execute_rr(&mut self, round: usize) -> Result<(), &str> {
-        let mut rnd = round;
-        if round == 0 {
-            rnd = 2;
+        while self.job_queue.len() > 0 {
+            let job = self.job_queue.pop_front();
+            if let Some(mut j) = job {
+                let res = self.execute_rr_program(&mut j, round);
+                match res {
+                    Some(_) => { self.job_queue.push_back(j); println!("oops"); },
+                    None => continue
+                }
+            } else {
+                return Err("Error fetching job")
+            }
         }
-        // TODO
         Ok(())
     }
-    
-    fn execute_rr_program(&mut self, mut job: Job) {
-        
+
+    fn execute_rr_program<'b>(&mut self, job: &'b mut Job, rounds: usize) -> Option<&'b Job> {
+        let mut line_count = 0;
+
+        // Get necessary data to avoid borrowing self during the operation
+        while line_count < rounds && job.pc < job.size {
+            println!("LINE COUNT: {}", line_count);
+            println!("{} line {}", job.program.filename, job.pc);
+
+            // Calculate page index and validate it's inside the page table
+            let page_idx = job.pc / FRAME_SIZE;
+            // Check if page_idx is valid for this job
+            if !job.program.page_table.contains(&(page_idx as isize)) {
+                println!("Invalid page index: {}", page_idx);
+                return None; // Or handle this error appropriately
+            }
+
+            // Read the line from memory
+            let mem_idx = find_mem_idx(page_idx, job.pc);
+            let line_text = self.prog_memory.read(mem_idx);
+            let line = line_text.split(';').map(str::to_string).collect();
+
+            line_count += 1;
+
+            // Process the line
+            interpreter(line, self);
+            job.pc += 1;
+        }
+
+        // Return None if the job is completed, otherwise return the job
+        if job.pc == job.size {
+            None
+        } else {
+            Some(job)
+        }
     }
     
     fn execute_whole_program(&mut self, mut job: Job) {
